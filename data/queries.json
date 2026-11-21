@@ -1,0 +1,86 @@
+[
+ {
+  "id": "q1",
+  "title": "How do customers rate their orders?",
+  "why": "Start with the baseline: the spread of review scores.",
+  "chart": "bar",
+  "x": "score",
+  "y": "pct",
+  "sql": "SELECT score,\n       COUNT(*) AS reviews,\n       ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS pct\nFROM reviews\nGROUP BY score\nORDER BY score;"
+ },
+ {
+  "id": "q2",
+  "title": "Does delivery decide the rating?",
+  "why": "Split reviewed orders by whether they arrived by the promised date.",
+  "chart": "bar",
+  "x": "delivery",
+  "y": "pct_bad",
+  "sql": "SELECT CASE\n         WHEN o.delivered_at IS NULL THEN 'Not delivered'\n         WHEN o.delivered_at > o.estimated_at THEN 'Late'\n         ELSE 'On time'\n       END AS delivery,\n       COUNT(*) AS orders,\n       ROUND(AVG(r.score), 2) AS avg_score,\n       ROUND(100.0 * AVG(r.score <= 2), 1) AS pct_bad\nFROM orders o\nJOIN reviews r USING (order_id)\nGROUP BY delivery\nORDER BY avg_score DESC;"
+ },
+ {
+  "id": "q3",
+  "title": "How much of the bad feeling comes from delivery?",
+  "why": "Share of all 1 and 2 star reviews, against share of orders.",
+  "chart": "bar",
+  "x": "delivery",
+  "y": "pct_of_bad",
+  "sql": "WITH d AS (\n  SELECT CASE\n           WHEN o.delivered_at IS NULL THEN 'Not delivered'\n           WHEN o.delivered_at > o.estimated_at THEN 'Late'\n           ELSE 'On time'\n         END AS delivery,\n         COUNT(*) AS orders,\n         SUM(r.score <= 2) AS bad\n  FROM orders o JOIN reviews r USING (order_id)\n  GROUP BY delivery\n)\nSELECT delivery, orders, bad,\n       ROUND(100.0 * orders / SUM(orders) OVER (), 1) AS pct_of_orders,\n       ROUND(100.0 * bad / SUM(bad) OVER (), 1) AS pct_of_bad\nFROM d\nORDER BY pct_of_bad DESC;"
+ },
+ {
+  "id": "q4",
+  "title": "Does arriving very early earn better reviews?",
+  "why": "Deliveries grouped by how far they landed from the promised date.",
+  "chart": "bar",
+  "x": "vs_promise",
+  "y": "avg_score",
+  "sql": "WITH d AS (\n  SELECT julianday(o.delivered_at) - julianday(o.estimated_at) AS days, r.score\n  FROM orders o JOIN reviews r USING (order_id)\n  WHERE o.delivered_at IS NOT NULL\n)\nSELECT CASE\n         WHEN days <= -21 THEN '1. 3+ weeks early'\n         WHEN days <= -14 THEN '2. 2 to 3 weeks early'\n         WHEN days <= -7  THEN '3. 1 to 2 weeks early'\n         WHEN days <= 0   THEN '4. Up to 1 week early'\n         WHEN days <= 7   THEN '5. Up to 1 week late'\n         ELSE '6. Over 1 week late'\n       END AS vs_promise,\n       COUNT(*) AS orders,\n       ROUND(AVG(score), 2) AS avg_score\nFROM d\nGROUP BY vs_promise\nORDER BY vs_promise;"
+ },
+ {
+  "id": "q5",
+  "title": "How padded are the delivery promises?",
+  "why": "Average promised days against actual days, for delivered orders.",
+  "chart": "none",
+  "sql": "SELECT COUNT(*) AS delivered_orders,\n       ROUND(AVG(julianday(estimated_at) - julianday(purchased_at)), 1) AS promised_days,\n       ROUND(AVG(julianday(delivered_at) - julianday(purchased_at)), 1) AS actual_days,\n       ROUND(AVG(julianday(estimated_at) - julianday(delivered_at)), 1) AS days_early,\n       ROUND(100.0 * AVG(delivered_at > estimated_at), 1) AS pct_late\nFROM orders\nWHERE delivered_at IS NOT NULL;"
+ },
+ {
+  "id": "q6",
+  "title": "Where are promises broken most?",
+  "why": "Late rate by customer state, for states with at least 500 delivered orders.",
+  "chart": "bar",
+  "x": "state",
+  "y": "pct_late",
+  "sql": "SELECT state,\n       COUNT(*) AS delivered_orders,\n       ROUND(100.0 * AVG(delivered_at > estimated_at), 1) AS pct_late,\n       ROUND(AVG(julianday(estimated_at) - julianday(delivered_at)), 1) AS avg_days_early\nFROM orders\nWHERE delivered_at IS NOT NULL\nGROUP BY state\nHAVING COUNT(*) >= 500\nORDER BY pct_late DESC\nLIMIT 12;"
+ },
+ {
+  "id": "q9",
+  "title": "Which states hold most of the late orders?",
+  "why": "Late rate tells you where it is bad. Volume tells you where fixing it matters.",
+  "chart": "bar",
+  "x": "state",
+  "y": "pct_of_late",
+  "sql": "SELECT state,\n       SUM(delivered_at > estimated_at) AS late_orders,\n       ROUND(100.0 * SUM(delivered_at > estimated_at)\n             / (SELECT SUM(delivered_at > estimated_at) FROM orders WHERE delivered_at IS NOT NULL), 1) AS pct_of_late,\n       ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM orders WHERE delivered_at IS NOT NULL), 1) AS pct_of_orders\nFROM orders\nWHERE delivered_at IS NOT NULL\nGROUP BY state\nORDER BY late_orders DESC\nLIMIT 8;"
+ },
+ {
+  "id": "q7",
+  "title": "Is lateness spread out, or concentrated in a few sellers?",
+  "why": "Sellers ranked by late orders. How much of all lateness comes from the worst 5% of sellers?",
+  "chart": "none",
+  "sql": "WITH so AS (\n  SELECT DISTINCT i.seller_id, o.order_id,\n         o.delivered_at > o.estimated_at AS late\n  FROM orders o JOIN items i USING (order_id)\n  WHERE o.delivered_at IS NOT NULL\n), s AS (\n  SELECT seller_id, COUNT(*) AS orders, SUM(late) AS late\n  FROM so GROUP BY seller_id\n), ranked AS (\n  SELECT *, ROW_NUMBER() OVER (ORDER BY late DESC) AS rk,\n         COUNT(*) OVER () AS n\n  FROM s\n)\nSELECT COUNT(*) AS worst_sellers,\n       ROUND(100.0 * SUM(late) / (SELECT SUM(late) FROM s), 1) AS pct_of_late_orders,\n       ROUND(100.0 * SUM(orders) / (SELECT SUM(orders) FROM s), 1) AS pct_of_all_orders\nFROM ranked\nWHERE rk <= n * 0.05;"
+ },
+ {
+  "id": "q8",
+  "title": "Do orders split across sellers fare worse?",
+  "why": "Orders with items from more than one seller arrive in several parcels.",
+  "chart": "bar",
+  "x": "sellers_in_order",
+  "y": "pct_bad",
+  "sql": "WITH s AS (\n  SELECT order_id, COUNT(DISTINCT seller_id) AS n\n  FROM items GROUP BY order_id\n)\nSELECT CASE WHEN n = 1 THEN 'One seller' ELSE 'Two or more' END AS sellers_in_order,\n       COUNT(*) AS orders,\n       ROUND(AVG(r.score), 2) AS avg_score,\n       ROUND(100.0 * AVG(r.score <= 2), 1) AS pct_bad\nFROM s JOIN reviews r USING (order_id)\nGROUP BY sellers_in_order;"
+ },
+ {
+  "id": "q10",
+  "title": "What is the most that fixing lateness could gain?",
+  "why": "An upper bound: if every late order had been rated like an on-time order. It assumes nothing else about those orders differs, so it is an estimate, not a forecast.",
+  "chart": "none",
+  "sql": "WITH d AS (\n  SELECT CASE\n           WHEN o.delivered_at IS NULL THEN 'Not delivered'\n           WHEN o.delivered_at > o.estimated_at THEN 'Late'\n           ELSE 'On time'\n         END AS delivery, r.score\n  FROM orders o JOIN reviews r USING (order_id)\n), ot AS (\n  SELECT AVG(score) AS s, AVG(score <= 2) AS b FROM d WHERE delivery = 'On time'\n)\nSELECT ROUND(AVG(score), 2) AS avg_score_now,\n       ROUND(AVG(CASE WHEN delivery = 'Late' THEN (SELECT s FROM ot) ELSE score END), 2) AS avg_score_if_on_time,\n       SUM(score <= 2) AS bad_reviews_now,\n       ROUND(SUM(CASE WHEN delivery = 'Late' THEN (SELECT b FROM ot) ELSE score <= 2 END)) AS bad_reviews_if_on_time\nFROM d;"
+ }
+]
