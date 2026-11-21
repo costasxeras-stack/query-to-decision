@@ -1,0 +1,10 @@
+{
+  "name": "query-to-decision",
+  "version": "0.1.0",
+  "description": "What drives bad reviews on a marketplace, and what should it fix first? A SQL analysis of Olist's public e-commerce data that runs live in the browser, ending in a ranked recommendation.",
+  "private": true,
+  "scripts": {
+    "serve": "python3 -m http.server 8000"
+  },
+  "license": "MIT"
+}

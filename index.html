@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Query to Decision · Olist delivery and reviews</title>
+<meta name="description" content="A product question answered with SQL on Olist's public e-commerce data, run live in your browser: what drives bad reviews, and what should the marketplace fix first?">
+<meta name="theme-color" content="#1d4e89">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231d4e89'/%3E%3Cpath d='M8 10h16M8 16h10M8 22h6' stroke='white' stroke-width='2.6' stroke-linecap='round'/%3E%3Cpath d='M20 20l3 3 5-6' fill='none' stroke='%23ffd166' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,600;7..72,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css?v=1">
+<style>
+:root{--accent:#1d4e89;--soft:#e7eef7;--mono:"JetBrains Mono",ui-monospace,Menlo,monospace}
+.hero{padding:34px 0 8px}
+.hero .kicker{font:600 12.5px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.hero h1{font-size:clamp(30px,4.8vw,46px);line-height:1.08;margin-top:10px;max-width:22ch}
+.hero p{color:var(--muted);font-size:18px;max-width:68ch;margin:12px 0 0}
+.answer{background:var(--accent);color:#fff;border-radius:18px;padding:24px;margin-top:20px}
+.answer h2{color:#fff;font-size:22px}
+.answer ol{margin:12px 0 0;padding-left:20px;display:grid;gap:8px;font-size:16px}
+.answer b{color:#ffd166}
+.loader{display:flex;gap:12px;align-items:center;font-size:14.5px;color:var(--muted);margin-top:16px}
+.loader .bar{flex:1;max-width:320px;height:6px;border-radius:3px;background:#e4e0d9;overflow:hidden}
+.loader .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.step{position:relative}
+.step .num{font:700 13px var(--body);color:#fff;background:var(--accent);border-radius:999px;width:28px;height:28px;display:inline-grid;place-items:center;margin-right:10px;vertical-align:3px}
+.step h2{display:inline;font-size:22px}
+.step .why{color:var(--muted);font-size:15px;margin:8px 0 0}
+.editor{position:relative;margin-top:14px}
+.editor textarea{width:100%;font:13.5px/1.6 var(--mono);background:#0f1b2d;color:#e6edf6;border:0;border-radius:12px;padding:14px 16px;min-height:120px;resize:vertical;tab-size:2;white-space:pre;overflow:auto}
+.editor textarea:focus{outline:2px solid #ffd166;outline-offset:1px}
+.edbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.edbar .t{font-size:12.5px;color:var(--faint);margin-left:auto}
+.res{margin-top:12px;overflow-x:auto}
+.res table{font-size:13.5px}
+.res td,.res th{padding:7px 8px;white-space:nowrap}
+.res .err{color:var(--warn);font:13px var(--mono);white-space:pre-wrap}
+.chart{margin-top:10px}
+.hb{display:grid;grid-template-columns:minmax(110px,180px) 1fr 70px;gap:10px;align-items:center;font-size:13.5px;margin-top:6px}
+.hb .t{height:14px;border-radius:7px;background:#eeebe5;overflow:hidden}
+.hb .t i{display:block;height:100%;background:var(--accent)}
+.hb .n{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.finding{margin-top:14px;border-left:4px solid #ffd166;background:#fffaf0;border-radius:0 12px 12px 0;padding:12px 14px;font-size:15px}
+.finding b{color:var(--ink)}
+.finding .tag{font:600 11.5px var(--body);text-transform:uppercase;letter-spacing:.05em;color:#9a6b1f;display:block;margin-bottom:4px}
+.sim{width:100%}
+.sim tr.best td{background:var(--soft);font-weight:600}
+.rec{display:grid;gap:12px;margin-top:12px}
+.rec .r{border:1px solid var(--line);border-radius:14px;padding:16px}
+.rec .r h3{font:600 17px var(--body)}
+.rec .r p{color:var(--muted);font-size:14.5px;margin:6px 0 0}
+.rec .r .m{font-size:13.5px;margin-top:8px;color:var(--ink)}
+.schema{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:10px}
+.schema div{border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:12.5px/1.6 var(--mono)}
+.schema b{font:600 13.5px var(--body);display:block;margin-bottom:4px}
+.toc{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+.toc a{font-size:13px;padding:5px 10px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--muted);text-decoration:none}
+@media (max-width:600px){.hb{grid-template-columns:96px 1fr 56px}.answer{padding:18px}.hero p{font-size:16.5px}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="./"><i><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 5h10M3 8h6M3 11h3" stroke="white" stroke-width="1.7" stroke-linecap="round"/></svg></i>Query to Decision</a>
+  <nav><a class="hide-sm" href="https://github.com/costasxeras-stack/query-to-decision">GitHub</a><a href="https://kostasxeras.com/">Portfolio</a></nav>
+</div></header>
+
+<main class="wrap">
+  <section class="hero">
+    <span class="kicker">SQL product analysis · Olist public e-commerce data · 99,441 orders</span>
+    <h1>What drives bad reviews on a marketplace, and what should it fix first?</h1>
+    <p>Olist connects small Brazilian shops to large marketplaces. One in seven of its reviews is 1 or 2 stars. Every query below runs live in your browser on the real data. Edit any of them and run it again.</p>
+    <div class="loader" id="loader"><span id="ltext">Loading the database (5 MB)…</span><span class="bar"><i id="lbar"></i></span></div>
+    <nav class="toc" aria-label="Sections"><a href="#answer">Answer</a><a href="#analysis">Analysis</a><a href="#simulation">Simulation</a><a href="#recommendation">Recommendation</a><a href="#scratch">Your own query</a><a href="#limits">Limits</a></nav>
+  </section>
+
+  <section class="answer" id="answer">
+    <h2>The answer in 30 seconds</h2>
+    <ol>
+      <li>Delivery decides the rating. Late orders get a bad review <b>62%</b> of the time, on-time orders <b>9%</b>.</li>
+      <li>Speed is not the problem. Orders arrive <b>12 days</b> before the promised date on average, and arriving 3 weeks early earns no better rating than 1 week early.</li>
+      <li>Broken promises cluster by place, not by bad sellers. Rio de Janeiro has <b>13%</b> of orders but <b>23%</b> of late ones.</li>
+      <li>Fix reliability on the worst routes first. Better delivery estimates help, but only a little.</li>
+    </ol>
+  </section>
+
+  <div id="analysis"></div>
+  <div id="steps"></div>
+
+  <section class="card step" id="simulation">
+    <span class="num">S</span><h2>Would smarter promises fix it?</h2>
+    <p class="why">If estimates are padded, why not promise each route's real delivery time? I fitted route-based promises (seller state to customer state) on orders from 2016 and 2017, and tested them on <span id="simtest"></span> orders from 2018. This step runs in Python, because percentiles are awkward in SQLite. <a href="https://github.com/costasxeras-stack/query-to-decision/blob/main/scripts/simulate_promises.py">See the script</a>.</p>
+    <div class="res"><table class="sim"><thead><tr><th>Promise rule, tested on 2018 orders</th><th class="n">Average promise</th><th class="n">Late</th></tr></thead><tbody id="simtbl"></tbody></table></div>
+    <div class="finding"><span class="tag">Finding</span>There is no free lunch. Cutting today's promises by 2 days makes <b>11.3%</b> of orders late. A route-based promise of the same average length as today (<b>23.2</b> against 23.4 days) is late <b>7.3%</b> of the time against <b>7.7%</b>. Better estimates are worth doing because they are cheap, but they are not the main lever.</div>
+  </section>
+
+  <section class="card" id="recommendation">
+    <h2>Recommendation</h2>
+    <p class="sub">For a marketplace product team, in order of impact.</p>
+    <div class="rec">
+      <div class="r"><h3>1. Make the worst routes reliable, starting with Rio de Janeiro</h3><p>Rio and the north-east states have the highest late rates, and Rio alone holds 23% of late orders. Work with carriers and sellers on those routes: carrier choice, pickup cut-off times, and a stock-out check before the order is accepted.</p><p class="m"><b>Measure:</b> late rate on Rio routes (12.1% today, target the national 6.8%). <b>Guardrail:</b> average promised days must not rise.</p></div>
+      <div class="r"><h3>2. Tell customers before they find out</h3><p>Orders that never arrive are 3% of orders but 15% of bad reviews. Send a proactive message and a fix when a parcel misses a tracking milestone, instead of waiting for the customer to complain.</p><p class="m"><b>Measure:</b> share of 1 and 2 star reviews on late and undelivered orders (62% and 78% today).</p></div>
+      <div class="r"><h3>3. Switch to route-based delivery estimates</h3><p>A cheap change with a small gain: fewer late orders at the same promise length. Do not shorten promises across the board: the simulation shows lateness rises fast.</p><p class="m"><b>Measure:</b> late rate at equal average promise. <b>Hypothesis to test:</b> shorter, more accurate promises raise checkout conversion. This data has no checkout events, so it needs an A/B test.</p></div>
+      <div class="r"><h3>4. Say when an order ships in several parcels</h3><p>Orders from two or more sellers are only 1.3% of orders, but 47% of them get a bad review. Showing "arrives in 2 parcels" at checkout is a small, testable change.</p><p class="m"><b>Measure:</b> bad review rate on multi-seller orders.</p></div>
+    </div>
+    <div class="finding" style="margin-top:16px"><span class="tag">Size of the prize</span>If every late order had been rated like an on-time one, bad reviews would fall from <b>14,486</b> to about <b>11,095</b> (−23%) and the average rating from <b>4.09</b> to <b>4.22</b>. This is an upper bound from step 10, not a forecast.</div>
+  </section>
+
+  <section class="card" id="scratch">
+    <h2>Ask your own question</h2>
+    <p class="sub">The same database, any SQLite query. Tables and columns:</p>
+    <div class="schema" id="schema"></div>
+    <div class="editor"><textarea id="free" spellcheck="false" aria-label="Your SQL query">SELECT p.category,
+       COUNT(*) AS items,
+       ROUND(AVG(r.score), 2) AS avg_score
+FROM items i
+JOIN products p USING (product_id)
+JOIN reviews r USING (order_id)
+GROUP BY p.category
+HAVING COUNT(*) >= 1000
+ORDER BY avg_score
+LIMIT 10;</textarea></div>
+    <div class="edbar"><button class="btn primary" type="button" id="freerun">Run query</button><span class="note" style="margin:0">Ctrl or Cmd + Enter runs it. Results show up to 200 rows.</span><span class="t" id="freet"></span></div>
+    <div class="res" id="freeres"></div>
+  </section>
+
+  <section class="card" id="limits">
+    <h2>Limits</h2>
+    <ul class="sub" style="display:grid;gap:6px;padding-left:18px">
+      <li>Data from 2016 to 2018. Olist's logistics have surely changed since.</li>
+      <li>Dates are kept to the day. "Late" means delivered on a later day than the promised date.</li>
+      <li>Ratings and lateness are correlated here. Late delivery very likely causes bad reviews, but this data cannot prove it on its own. The upper bound assumes it does.</li>
+      <li>No checkout or browsing data, so the effect of promise length on conversion is a hypothesis.</li>
+      <li>IDs are shortened to numbers, and review text and payments are left out to keep the database small. Nothing else is changed.</li>
+    </ul>
+  </section>
+</main>
+<footer><div class="wrap"><span>Query to Decision v0.1.0 by <a href="https://kostasxeras.com/">Konstantinos Xeras</a>, built with Claude (Anthropic). <a href="https://github.com/costasxeras-stack/query-to-decision">Code, queries and decisions on GitHub</a>.</span><span>Data: <a href="https://github.com/olist/work-at-olist-data">Olist public e-commerce dataset</a>, MIT licence. SQL engine: <a href="https://github.com/sql-js/sql.js">sql.js</a>, MIT licence. Olist is not involved in this project.</span></div></footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="vendor/sql-wasm.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? 'NULL' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var db = null, Q = [], SIM = null;
+  var FINDINGS = {
+    q1: 'Most customers are happy: 77% give 4 or 5 stars. But <b>14.7%</b> give 1 or 2, about one review in seven. Those are the ones to explain.',
+    q2: 'The split is stark. On-time orders average <b>4.29</b> stars and 9% are bad. Late orders average <b>2.27</b> and 62% are bad. Orders that never arrived: 1.75 and 78%.',
+    q3: 'Late and undelivered orders are <b>9%</b> of orders but <b>43%</b> of bad reviews. Delivery is the biggest single driver. The other 57% of bad reviews are on on-time orders, about product or seller, which needs the review text to dig into.',
+    q4: 'Arriving <b>3 weeks early</b> scores 4.29, no better than 1 to 2 weeks early (4.30). Ratings only collapse once the promise is broken. So the goal is keeping promises, not beating them.',
+    q5: 'Olist promises <b>24.4 days</b> on average and delivers in <b>12.5</b>, so orders arrive about 12 days early. And still 6.8% are late. The padding hides very uneven delivery times.',
+    q6: 'Late rates are highest in the north-east (Maranhão 17%, Ceará 14%, Bahia 12%) and in <b>Rio de Janeiro (12%)</b>, even though their promises are padded too.',
+    q9: 'Volume changes the picture. São Paulo is big but reliable. <b>Rio de Janeiro has 12.8% of orders but 22.9% of late orders</b>, the single biggest place to fix.',
+    q7: 'Lateness is <b>not</b> a few bad sellers. The 5% of sellers with the most late orders also handle half of all orders, so they have their share of lateness, not much more. That points to routes and carriers, not seller policing.',
+    q8: 'Orders with items from two or more sellers are rare (1.3%), but <b>47%</b> of them get a bad review against 14% for single-seller orders. Several parcels, several chances to disappoint.',
+    q10: 'Upper bound: bad reviews would fall from 14,486 to about <b>11,095 (−23%)</b> and the average from 4.09 to <b>4.22</b>. Real fixes would capture part of that.'
+  };
+
+  // ---------- loading
+  function load() {
+    var wasm = initSqlJs({ locateFile: function (f) { return 'vendor/' + f; } });
+    var data = fetch('data/olist.db.gz').then(function (r) {
+      if (!r.ok) throw new Error('download failed');
+      var total = +r.headers.get('content-length') || 5.3e6, got = 0, reader = r.body.getReader(), chunks = [];
+      function pump() { return reader.read().then(function (x) { if (x.done) return; chunks.push(x.value); got += x.value.length; $('lbar').style.width = Math.min(100, got / total * 100) + '%'; return pump(); }); }
+      return pump().then(function () { return new Blob(chunks); });
+    }).then(function (blob) {
+      if (!window.DecompressionStream) throw new Error('This browser cannot unzip the database. Try a recent Chrome, Edge, Safari or Firefox.');
+      return new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+    });
+    Promise.all([wasm, data, fetch('data/queries.json').then(function (r) { return r.json(); }), fetch('data/simulation.json').then(function (r) { return r.json(); })])
+      .then(function (a) {
+        db = new a[0].Database(new Uint8Array(a[1])); Q = a[2]; SIM = a[3];
+        $('ltext').textContent = 'Database loaded: ' + count('orders') + ' orders, ' + count('reviews') + ' reviews, ' + count('items') + ' items. Everything runs in your browser.';
+        $('lbar').parentNode.hidden = true; render();
+      }).catch(function (e) { $('ltext').textContent = 'Could not load the database. ' + (e && e.message ? e.message : '') + ' Refresh to try again.'; $('ltext').style.color = 'var(--warn)'; });
+  }
+  function count(t) { return db.exec('SELECT COUNT(*) FROM ' + t)[0].values[0][0].toLocaleString('en'); }
+
+  // ---------- running
+  function run(sql, out, chart, x, y) {
+    var t0 = performance.now();
+    try {
+      var r = db.exec(sql), ms = Math.round(performance.now() - t0);
+      if (!r.length) { out.innerHTML = '<p class="note">Query ran in ' + ms + ' ms and returned no rows.</p>'; return ms; }
+      var cols = r[r.length - 1].columns, rows = r[r.length - 1].values, shown = rows.slice(0, 200);
+      var html = '<table><thead><tr>' + cols.map(function (c) { return '<th>' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        shown.map(function (row) { return '<tr>' + row.map(function (v) { return '<td' + (typeof v === 'number' ? ' class="n"' : '') + '>' + esc(typeof v === 'number' ? fmt(v) : v) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>';
+      if (rows.length > 200) html += '<p class="note">Showing 200 of ' + rows.length.toLocaleString('en') + ' rows.</p>';
+      var xi = cols.indexOf(x), yi = cols.indexOf(y);
+      if (chart === 'bar' && xi > -1 && yi > -1 && rows.length <= 25) {
+        var mx = Math.max.apply(null, rows.map(function (r) { return +r[yi] || 0; })) || 1;
+        html += '<div class="chart" aria-label="Bar chart of ' + esc(y) + '">' + rows.map(function (r) { return '<div class="hb"><span>' + esc(String(r[xi]).replace(/^\d\. /, '')) + '</span><span class="t"><i style="width:' + Math.max(0, (+r[yi] || 0) / mx * 100) + '%"></i></span><span class="n">' + fmt(r[yi]) + '</span></div>'; }).join('') + '</div>';
+      }
+      out.innerHTML = html; return ms;
+    } catch (e) { out.innerHTML = '<p class="err">' + esc(e.message) + '</p>'; return null; }
+  }
+  function fmt(v) { return typeof v === 'number' ? (Number.isInteger(v) ? v.toLocaleString('en') : v.toLocaleString('en', { maximumFractionDigits: 2 })) : v; }
+
+  function render() {
+    $('steps').innerHTML = Q.map(function (q, i) {
+      return '<section class="card step" id="' + q.id + '"><span class="num">' + (i + 1) + '</span><h2>' + esc(q.title) + '</h2><p class="why">' + esc(q.why) + '</p>' +
+        '<div class="editor"><textarea spellcheck="false" data-q="' + q.id + '" aria-label="SQL for step ' + (i + 1) + '" rows="' + Math.min(18, q.sql.split('\n').length + 1) + '">' + esc(q.sql) + '</textarea></div>' +
+        '<div class="edbar"><button class="btn primary small" type="button" data-run="' + q.id + '">Run</button><button class="btn small" type="button" data-reset="' + q.id + '">Reset</button><span class="t" data-t="' + q.id + '"></span></div>' +
+        '<div class="res" data-res="' + q.id + '"></div><div class="finding"><span class="tag">Finding</span>' + FINDINGS[q.id] + '</div></section>';
+    }).join('');
+    Q.forEach(function (q) { exec(q.id); });
+    $('simtest').textContent = SIM.test_orders.toLocaleString('en');
+    $('simtbl').innerHTML = SIM.rows.map(function (r) { var best = /93th/.test(r.rule); return '<tr' + (best ? ' class="best"' : '') + '><td>' + esc(r.rule.replace('93th', '93rd').replace('92th', '92nd')) + '</td><td class="n">' + r.promise_days + ' days</td><td class="n">' + r.pct_late + '%</td></tr>'; }).join('');
+    var tables = db.exec("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")[0].values.map(function (v) { return v[0]; });
+    $('schema').innerHTML = tables.map(function (t) { var cols = db.exec('PRAGMA table_info(' + t + ')')[0].values.map(function (c) { return c[1]; }); return '<div><b>' + t + '</b>' + cols.join('<br>') + '</div>'; }).join('');
+    runFree();
+  }
+  function exec(id) {
+    var q = Q.filter(function (x) { return x.id === id; })[0], ta = document.querySelector('[data-q="' + id + '"]');
+    var ms = run(ta.value, document.querySelector('[data-res="' + id + '"]'), q.chart, q.x, q.y);
+    document.querySelector('[data-t="' + id + '"]').textContent = ms != null ? 'Ran in ' + ms + ' ms' + (ta.value.trim() !== q.sql.trim() ? ' · edited' : '') : '';
+  }
+  document.addEventListener('click', function (e) {
+    var r = e.target.closest('[data-run]'); if (r) exec(r.getAttribute('data-run'));
+    var s = e.target.closest('[data-reset]'); if (s) { var id = s.getAttribute('data-reset'); document.querySelector('[data-q="' + id + '"]').value = Q.filter(function (x) { return x.id === id; })[0].sql; exec(id); }
+  });
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && e.target.tagName === 'TEXTAREA') { e.preventDefault(); if (e.target.id === 'free') runFree(); else exec(e.target.getAttribute('data-q')); }
+    if (e.key === 'Tab' && e.target.tagName === 'TEXTAREA') { e.preventDefault(); var t = e.target, s = t.selectionStart; t.value = t.value.slice(0, s) + '  ' + t.value.slice(t.selectionEnd); t.selectionStart = t.selectionEnd = s + 2; }
+  });
+  function runFree() { if (!db) return; var ms = run($('free').value, $('freeres'), 'none'); $('freet').textContent = ms != null ? 'Ran in ' + ms + ' ms' : ''; }
+  $('freerun').addEventListener('click', runFree);
+  load();
+})();
+</script>
+</body>
+</html>

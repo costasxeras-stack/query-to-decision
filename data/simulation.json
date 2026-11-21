@@ -1,0 +1,47 @@
+{
+ "train_orders": 43698,
+ "test_orders": 52778,
+ "routes_with_30_plus": 92,
+ "rows": [
+  {
+   "rule": "Today's promise",
+   "promise_days": 23.4,
+   "pct_late": 7.7
+  },
+  {
+   "rule": "Today's promise minus 2 days",
+   "promise_days": 21.4,
+   "pct_late": 11.3
+  },
+  {
+   "rule": "Today's promise minus 3 days",
+   "promise_days": 20.4,
+   "pct_late": 13.3
+  },
+  {
+   "rule": "Route-based, 90th percentile",
+   "promise_days": 20.7,
+   "pct_late": 10.0
+  },
+  {
+   "rule": "Route-based, 92th percentile",
+   "promise_days": 22.2,
+   "pct_late": 8.3
+  },
+  {
+   "rule": "Route-based, 93th percentile",
+   "promise_days": 23.2,
+   "pct_late": 7.3
+  },
+  {
+   "rule": "Route-based, 94th percentile",
+   "promise_days": 24.5,
+   "pct_late": 6.2
+  },
+  {
+   "rule": "Route-based, 95th percentile",
+   "promise_days": 25.7,
+   "pct_late": 5.3
+  }
+ ]
+}
