@@ -64,9 +64,9 @@ The analysis uses past data. These are the measures for the actions it recommend
 2. Add carrier data to separate route problems from seller dispatch delays
 3. Design the A/B test for shorter, accurate promises at checkout
 
-## How it was built
+## My role
 
-I framed the problem, made the product calls and wrote the conclusions. Claude (Anthropic) was my engineering partner for the code. 
+I framed the problem, made the product calls and wrote the conclusions. 
 
 ## Run it yourself
 
